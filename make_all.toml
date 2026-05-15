@@ -1,4 +1,4 @@
-name = "NEOBABEL"
+name = "Tic Tac Toe [FUNPRO]"
 default_targets = ["win32", "win64", "macos"]
 build_directory = "bin"
 love_files = [

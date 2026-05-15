@@ -13,8 +13,8 @@ local board = {
 -- Quién tiene el turno: 1 = jugador, 2 = IA
 local currentPlayer = 1
 
--- Estado del juego: "playing" = jugando, "win" = ganó alguien, "draw" = empate
-local gameState = "playing"
+-- Estado del juego: "choosing" = eligiendo símbolo, "playing" = jugando, "win" = ganó alguien, "draw" = empate
+local gameState = "choosing"
 
 -- Quién ganó (1 o 2). nil significa que nadie ha ganado todavía
 local winner = nil
@@ -31,8 +31,8 @@ local boardSize = cellSize * 3
 -- Modo de juego: "ai" = contra la IA, "2player" = dos jugadores
 local gameMode = "ai"
 
--- Símbolo del jugador: 1 = X, 2 = O (el jugador es X)
-local playerSymbol = 1
+-- Símbolo del jugador: 1 = X, 2 = O
+local playerSymbol = nil
 
 -- ============================================
 -- FUNCIÓN: resetGame()
@@ -47,10 +47,12 @@ local function resetGame()
     }
     -- El jugador 1 (X) empieza siempre
     currentPlayer = 1
-    -- Volvemos al estado de "jugando"
-    gameState = "playing"
+    -- Volvemos al estado de "eligiendo símbolo"
+    gameState = "choosing"
     -- No hay ganador todavía
     winner = nil
+    -- Resetear símbolo del jugador
+    playerSymbol = nil
 end
 
 -- ============================================
@@ -135,13 +137,13 @@ end
 -- ============================================
 local function getAIMove()
     -- PASO 1: Intentar ganar
-    local winRow, winCol = findWinningMove(2)
+    local winRow, winCol = findWinningMove(3 - playerSymbol)
     if winRow then
         return winRow, winCol
     end
 
     -- PASO 2: Bloquear al jugador
-    local blockRow, blockCol = findWinningMove(1)
+    local blockRow, blockCol = findWinningMove(playerSymbol)
     if blockRow then
         return blockRow, blockCol
     end
@@ -173,6 +175,52 @@ local function getAIMove()
 end
 
 -- ============================================
+-- FUNCIÓN: drawSymbolSelection()
+-- Explicación: Dibuja la pantalla para que el jugador elija X u O
+-- ============================================
+local function drawSymbolSelection()
+    love.graphics.setColor(1, 1, 1) -- Color blanco
+    love.graphics.setFont(love.graphics.newFont(40))
+    love.graphics.printf("Elige tu símbolo", 0, 80, boardSize + margin * 2, "center")
+
+    love.graphics.setFont(love.graphics.newFont(30))
+    local screenWidth = boardSize + margin * 2
+    local screenHeight = boardSize + margin * 2 + 50
+    local buttonWidth = 120
+    local buttonHeight = 120
+    local centerY = screenHeight / 2 + 30
+
+    -- Botón para elegir X
+    local xButtonX = screenWidth / 2 - buttonWidth - 60
+    local xButtonY = centerY - buttonHeight / 2
+    love.graphics.setColor(0.3, 0.3, 0.5)  -- Azul oscuro
+    love.graphics.rectangle("fill", xButtonX, xButtonY, buttonWidth, buttonHeight)
+    love.graphics.setColor(0.92, 0.4, 0.4) -- Rojo para X
+    love.graphics.setLineWidth(8)
+    love.graphics.rectangle("line", xButtonX, xButtonY, buttonWidth, buttonHeight)
+    -- Dibujar X
+    love.graphics.line(xButtonX + 20, xButtonY + 20, xButtonX + buttonWidth - 20, xButtonY + buttonHeight - 20)
+    love.graphics.line(xButtonX + buttonWidth - 20, xButtonY + 20, xButtonX + 20, xButtonY + buttonHeight - 20)
+
+    -- Botón para elegir O
+    local oButtonX = screenWidth / 2 + 60
+    local oButtonY = centerY - buttonHeight / 2
+    love.graphics.setColor(0.3, 0.3, 0.5)  -- Azul oscuro
+    love.graphics.rectangle("fill", oButtonX, oButtonY, buttonWidth, buttonHeight)
+    love.graphics.setColor(0.4, 0.6, 0.96) -- Azul para O
+    love.graphics.setLineWidth(8)
+    love.graphics.rectangle("line", oButtonX, oButtonY, buttonWidth, buttonHeight)
+    -- Dibujar O
+    love.graphics.circle("line", oButtonX + buttonWidth / 2, oButtonY + buttonHeight / 2, buttonWidth / 2 - 20)
+
+    -- Texto debajo de los botones
+    love.graphics.setFont(love.graphics.newFont(20))
+    love.graphics.setColor(1, 1, 1)
+    love.graphics.printf("X", xButtonX, xButtonY + buttonHeight + 10, buttonWidth, "center")
+    love.graphics.printf("O", oButtonX, oButtonY + buttonHeight + 10, buttonWidth, "center")
+end
+
+-- ============================================
 -- FUNCIÓN: love.load()
 -- Explicación: Se ejecuta UNA SOLA VEZ al iniciar el juego
 -- Aquí configuramos la ventana, fuentes y el estado inicial
@@ -196,6 +244,12 @@ end
 function love.draw()
     -- Limpiar la pantalla con un color de fondo oscuro (RGB: 0.1, 0.1, 0.16)
     love.graphics.clear(0.1, 0.1, 0.16)
+
+    -- Si el jugador está eligiendo símbolo, mostrar la pantalla de selección
+    if gameState == "choosing" then
+        drawSymbolSelection()
+        return
+    end
 
     -- Dibujar las líneas del tablero (la cuadrícula 3x3)
     love.graphics.setColor(1, 1, 1) -- Color blanco
@@ -238,17 +292,25 @@ function love.draw()
 
     -- Dibujar el texto del mensaje (turno, ganador, empate, etc.)
     love.graphics.setColor(1, 1, 1) -- Color blanco
-    local message = "Turno del Jugador X"
+    local message = ""
     -- Cambiar el mensaje según el estado del juego
     if gameState == "win" then
         message = string.format("¡El Jugador %s ganó!", winner == 1 and "X" or "O")
     elseif gameState == "draw" then
         message = "¡Empate!"
-    elseif currentPlayer == 2 then
-        if gameMode == "ai" then
-            message = "Turno de la IA"
+    elseif gameState == "choosing" then
+        message = ""
+    else
+        -- Si es el turno del jugador
+        if currentPlayer == playerSymbol then
+            message = string.format("Turno del Jugador %s", currentPlayer == 1 and "X" or "O")
         else
-            message = "Turno del Jugador O"
+            -- Es el turno del AI o el otro jugador
+            if gameMode == "ai" then
+                message = "Turno de la IA"
+            else
+                message = string.format("Turno del Jugador %s", currentPlayer == 1 and "X" or "O")
+            end
         end
     end
 
@@ -267,9 +329,61 @@ end
 -- Parámetros: x, y = posición del clic; button = botón del mouse (1=izquierdo)
 -- ============================================
 function love.mousepressed(x, y, button)
-    -- Verificar si se hizo clic con el botón izquierdo y el juego está activo
-    if button ~= 1 or gameState ~= "playing" then
-        return -- Salir si no es el botón correcto o el juego terminó
+    -- Verificar si se hizo clic con el botón izquierdo
+    if button ~= 1 then
+        return -- Salir si no es el botón correcto
+    end
+
+    -- Si el jugador está eligiendo símbolo
+    if gameState == "choosing" then
+        local screenWidth = boardSize + margin * 2
+        local screenHeight = boardSize + margin * 2 + 50
+        local buttonWidth = 120
+        local buttonHeight = 120
+        local centerY = screenHeight / 2 + 30
+
+        -- Botón para elegir X
+        local xButtonX = screenWidth / 2 - buttonWidth - 60
+        local xButtonY = centerY - buttonHeight / 2
+
+        -- Botón para elegir O
+        local oButtonX = screenWidth / 2 + 60
+        local oButtonY = centerY - buttonHeight / 2
+
+        -- Si hace clic en el botón X
+        if x >= xButtonX and x <= xButtonX + buttonWidth and y >= xButtonY and y <= xButtonY + buttonHeight then
+            playerSymbol = 1
+            gameState = "playing"
+            currentPlayer = 1 -- Jugador (X) empieza primero
+            -- Si hace clic en el botón O
+        elseif x >= oButtonX and x <= oButtonX + buttonWidth and y >= oButtonY and y <= oButtonY + buttonHeight then
+            playerSymbol = 2
+            gameState = "playing"
+            currentPlayer = 1 -- Comenzar con X (IA)
+
+            -- Si jugamos contra IA, la IA juega primero con X
+            if gameMode == "ai" then
+                local aiRow, aiCol = getAIMove()
+                if aiRow then
+                    board[aiRow][aiCol] = 1 -- AI juega X
+                    local result = checkWin()
+                    if result == 1 or result == 2 then
+                        gameState = "win"
+                        winner = result
+                    elseif result == 0 then
+                        gameState = "draw"
+                    else
+                        currentPlayer = 2 -- Turno del jugador (O)
+                    end
+                end
+            end
+        end
+        return
+    end
+
+    -- El juego no está activo si no es "playing" o "choosing"
+    if gameState ~= "playing" then
+        return -- Salir si el juego terminó
     end
 
     -- Verificar si el clic está dentro del tablero
@@ -306,13 +420,13 @@ function love.mousepressed(x, y, button)
             -- Truco: 3 - 1 = 2, 3 - 2 = 1 (alterna entre jugadores)
             currentPlayer = 3 - currentPlayer
 
-            -- Si jugamos contra IA y es su turno
-            if gameMode == "ai" and currentPlayer == 2 then
+            -- Si jugamos contra IA y es el turno del AI (no es el turno del jugador)
+            if gameMode == "ai" and currentPlayer ~= playerSymbol then
                 -- Obtener el movimiento de la IA
                 local aiRow, aiCol = getAIMove()
                 if aiRow then
                     -- Colocar el símbolo de la IA en el tablero
-                    board[aiRow][aiCol] = 2
+                    board[aiRow][aiCol] = currentPlayer
                     -- Verificar si la IA ganó o hay empate
                     result = checkWin()
 
@@ -323,7 +437,7 @@ function love.mousepressed(x, y, button)
                         gameState = "draw"
                     else
                         -- Turno del jugador de nuevo
-                        currentPlayer = 1
+                        currentPlayer = 3 - currentPlayer
                     end
                 end
             end
